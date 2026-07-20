@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -19,14 +20,18 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,7 +48,8 @@ import coil.compose.AsyncImage
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReservaScreen(
-    viewModel: ReservaViewModel
+    viewModel: ReservaViewModel,
+    onVolver: () -> Unit
 ) {
     val reservas by viewModel.reservas.collectAsState()
     val isLoading = viewModel.isLoading
@@ -58,15 +64,30 @@ fun ReservaScreen(
         mutableStateOf<Reserva?>(null)
     }
 
+    var reservaDetalle by remember {
+        mutableStateOf<Reserva?>(null)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text("ReservaSport")
                 },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onVolver
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Volver"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF0D47A1),
-                    titleContentColor = Color.White
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         },
@@ -106,7 +127,7 @@ fun ReservaScreen(
             )
 
             Text(
-                text = "CRUD local.",
+                text = "Selecciona una reserva para ver sus detalles.",
                 style = MaterialTheme.typography.bodyMedium
             )
 
@@ -156,12 +177,8 @@ fun ReservaScreen(
                     ) { reserva ->
                         ReservaCard(
                             reserva = reserva,
-                            onEditar = {
-                                reservaSeleccionada = reserva
-                                mostrarDialogo = true
-                            },
-                            onEliminar = {
-                                viewModel.eliminarReserva(reserva)
+                            onVerDetalle = {
+                                reservaDetalle = reserva
                             }
                         )
                     }
@@ -176,11 +193,11 @@ fun ReservaScreen(
                     mostrarDialogo = false
                 },
                 onGuardar = {
-                    nombre,
-                    cancha,
-                    fecha,
-                    hora,
-                    estado ->
+                        nombre,
+                        cancha,
+                        fecha,
+                        hora,
+                        estado ->
 
                     val seleccionada = reservaSeleccionada
 
@@ -207,16 +224,34 @@ fun ReservaScreen(
                 }
             )
         }
+
+        reservaDetalle?.let { reserva ->
+            ReservaDetalleBottomSheet(
+                reserva = reserva,
+                onCerrar = {
+                    reservaDetalle = null
+                },
+                onEditar = {
+                    reservaDetalle = null
+                    reservaSeleccionada = reserva
+                    mostrarDialogo = true
+                },
+                onEliminar = {
+                    reservaDetalle = null
+                    viewModel.eliminarReserva(reserva)
+                }
+            )
+        }
     }
 }
 
 @Composable
 fun ReservaCard(
     reserva: Reserva,
-    onEditar: () -> Unit,
-    onEliminar: () -> Unit
+    onVerDetalle: () -> Unit
 ) {
     Card(
+        onClick = onVerDetalle,
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp),
@@ -249,31 +284,180 @@ fun ReservaCard(
                 modifier = Modifier.height(4.dp)
             )
 
-            Text("Cancha: ${reserva.cancha}")
-            Text("Fecha: ${reserva.fecha}")
-            Text("Hora: ${reserva.hora}")
-            Text("Estado: ${reserva.estado}")
+            Text(
+                text = "Cancha: ${reserva.cancha}"
+            )
+
+            Text(
+                text = "Fecha: ${reserva.fecha}"
+            )
+
+            Text(
+                text = "Hora: ${reserva.hora}"
+            )
+
+            Text(
+                text = "Estado: ${reserva.estado}"
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                text = "Toca para ver detalles",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReservaDetalleBottomSheet(
+    reserva: Reserva,
+    onCerrar: () -> Unit,
+    onEditar: () -> Unit,
+    onEliminar: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onCerrar,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = 24.dp,
+                    end = 24.dp,
+                    bottom = 32.dp
+                )
+        ) {
+            Text(
+                text = "Detalle de reserva",
+                style = MaterialTheme.typography.headlineSmall
+            )
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+
+            AsyncImage(
+                model = reserva.imagenUrl,
+                contentDescription = "Imagen de ${reserva.cancha}",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentScale = ContentScale.Crop
+            )
+
+            Spacer(
+                modifier = Modifier.height(16.dp)
+            )
+
+            Text(
+                text = reserva.nombreUsuario,
+                style = MaterialTheme.typography.titleLarge
+            )
 
             Spacer(
                 modifier = Modifier.height(12.dp)
             )
 
-            Row {
-                Button(
-                    onClick = onEditar
-                ) {
-                    Text("Editar reserva")
-                }
+            HorizontalDivider()
 
-                Spacer(
-                    modifier = Modifier.width(8.dp)
-                )
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
 
-                OutlinedButton(
-                    onClick = onEliminar
-                ) {
-                    Text("Eliminar")
-                }
+            Text(
+                text = "Cancha",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Text(
+                text = reserva.cancha,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            Text(
+                text = "Fecha",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Text(
+                text = reserva.fecha,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            Text(
+                text = "Hora",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Text(
+                text = reserva.hora,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            Text(
+                text = "Estado",
+                style = MaterialTheme.typography.labelLarge
+            )
+
+            Text(
+                text = reserva.estado,
+                style = MaterialTheme.typography.bodyLarge
+            )
+
+            Spacer(
+                modifier = Modifier.height(24.dp)
+            )
+
+            Button(
+                onClick = onEditar,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Editar reserva")
+            }
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            OutlinedButton(
+                onClick = onEliminar,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Eliminar reserva")
+            }
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            OutlinedButton(
+                onClick = onCerrar,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cerrar")
             }
         }
     }
@@ -347,6 +531,7 @@ fun ReservaDialog(
                     label = {
                         Text("Nombre del usuario")
                     },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -359,6 +544,7 @@ fun ReservaDialog(
                     label = {
                         Text("Cancha")
                     },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -374,6 +560,7 @@ fun ReservaDialog(
                     placeholder = {
                         Text("Ej: 01/06/2026")
                     },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -389,6 +576,7 @@ fun ReservaDialog(
                     placeholder = {
                         Text("Ej: 18:00")
                     },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -404,6 +592,7 @@ fun ReservaDialog(
                     placeholder = {
                         Text("Pendiente o Confirmada")
                     },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -429,7 +618,8 @@ fun ReservaDialog(
                         hora.isBlank() ||
                         estado.isBlank()
                     ) {
-                        error = "Completa todos los campos antes de guardar."
+                        error =
+                            "Completa todos los campos antes de guardar."
                     } else {
                         onGuardar(
                             nombre,
